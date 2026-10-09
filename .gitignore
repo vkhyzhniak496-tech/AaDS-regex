@@ -1,0 +1,13 @@
+*.exe
+*.out
+*.app
+*.bin
+*.pdf
+*.o
+*.obj
+
+.vscode/
+
+*.log
+*.tmp
+*~
