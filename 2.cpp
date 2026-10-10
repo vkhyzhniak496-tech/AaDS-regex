@@ -151,6 +151,16 @@ Fragment kleenStar(Fragment a, std::vector<State>& states){
     return {starter,ender};
 }
 
+Fragment plus(Fragment a, std::vector<State>& states)
+{
+    int starter = newState(states);
+    int ender = newState(states);
+    states[starter].transitions.push_back({EPSILON, a.starter});
+    states[a.ender].transitions.push_back({EPSILON, a.starter});
+    states[a.ender].transitions.push_back({EPSILON, ender});
+    return{starter, ender};
+}
+
 int main() {
     std::string testCases[] = {
         "abc",         // -> a&b&c
