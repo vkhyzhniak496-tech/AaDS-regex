@@ -42,7 +42,6 @@ std::string addConcatenation(const std::string& regex) {
     return result;
 }
 
-
 int precedence(char op) {
     if (op == '|') return 1;
     if (op == '&') return 2;
@@ -55,24 +54,20 @@ std::string toPostfix(const std::string& regex) {
     std::stack<char> operators;
 
     for (char c : regex) {
-        // 1. Literały (wszystko co nie jest operatorem) idą prosto na wyjście
         if (!isOperator(c)) {
             output += c;
         }
-        // 2. Nawias otwierający idzie bezwarunkowo na stos jako separator zasięgu
         else if (c == '(') {
             operators.push(c);
         }
-        // 3. Nawias zamykający opróżnia stos aż do pasującego '('
         else if (c == ')') {
             while (!operators.empty() && operators.top() != '(') {
                 output += operators.top();
                 operators.pop();
             }
             if (operators.empty()) throw std::runtime_error("Niedopasowany nawias");
-            operators.pop(); // usuń '('
+            operators.pop();
         }
-        // 4. Każdy operator (unarny i binarny)
         else {
             while (!operators.empty() && operators.top() != '(' &&
                    precedence(operators.top()) >= precedence(c)) {
@@ -92,14 +87,12 @@ std::string toPostfix(const std::string& regex) {
     return output;
 }
 
-struct Transition
-{
+struct Transition {
     char sign;
     int target;
 };
 
-struct State
-{
+struct State {
     std::vector<Transition> transitions;
 };
 
@@ -110,68 +103,105 @@ struct Fragment {
 
 const char EPSILON = '\0';
 
-int newState(std::vector<State>&states) {
+int newState(std::vector<State>& states) {
     int id = states.size();
     states.push_back(State{});
     return id;
 }
 
-Fragment makeLiteral(char c, std::vector<State>states)
-{
+Fragment makeLiteral(char c, std::vector<State>& states) {
     int starter = newState(states);
     int ender = newState(states);
-    states[starter].transitions.push_back({c,ender});
+    states[starter].transitions.push_back({c, ender});
     return {starter, ender};
 }
 
-Fragment concatenate( Fragment a, Fragment b, std::vector<State>states)
-{
-    states[a.ender].transitions.push_back({EPSILON,b.starter});
-    return {a.starter,b.ender};
+Fragment concatenate(Fragment a, Fragment b, std::vector<State>& states) {
+    states[a.ender].transitions.push_back({EPSILON, b.starter});
+    return {a.starter, b.ender};
 }
 
-Fragment alternative(Fragment a, Fragment b, std::vector<State>states)
-{
-    int starter=newState(states);
-    int ender=newState(states);
+Fragment alternative(Fragment a, Fragment b, std::vector<State>& states) {
+    int starter = newState(states);
+    int ender = newState(states);
     states[starter].transitions.push_back({EPSILON, a.starter});
     states[starter].transitions.push_back({EPSILON, b.starter});
     states[a.ender].transitions.push_back({EPSILON, ender});
     states[b.ender].transitions.push_back({EPSILON, ender});
-    return{starter,ender};
+    return {starter, ender};
 }
 
-Fragment kleenStar(Fragment a, std::vector<State>& states){
+Fragment kleenStar(Fragment a, std::vector<State>& states) {
     int starter = newState(states);
     int ender = newState(states);
     states[starter].transitions.push_back({EPSILON, a.starter});
     states[starter].transitions.push_back({EPSILON, ender});
     states[a.ender].transitions.push_back({EPSILON, a.starter});
     states[a.ender].transitions.push_back({EPSILON, ender});
-    return {starter,ender};
+    return {starter, ender};
 }
 
-Fragment plus(Fragment a, std::vector<State>& states)
-{
+Fragment plus(Fragment a, std::vector<State>& states) {
     int starter = newState(states);
     int ender = newState(states);
     states[starter].transitions.push_back({EPSILON, a.starter});
     states[a.ender].transitions.push_back({EPSILON, a.starter});
     states[a.ender].transitions.push_back({EPSILON, ender});
-    return{starter, ender};
+    return {starter, ender};
+}
+
+Fragment optional(Fragment a, std::vector<State>& states) {
+    int starter = newState(states);
+    int ender = newState(states);
+    states[starter].transitions.push_back({EPSILON, a.starter});
+    states[starter].transitions.push_back({EPSILON, ender});
+    states[a.ender].transitions.push_back({EPSILON, ender});
+    return {starter, ender};
+}
+
+Fragment buildNFA(const std::string& postfix, std::vector<State>& states) {
+    std::stack<Fragment> stack;
+
+    for (char c : postfix) {
+        if (!isOperator(c) || c == '.') {
+            stack.push(makeLiteral(c, states));
+        } else if (c == '&') {
+            auto b = stack.top(); stack.pop();
+            auto a = stack.top(); stack.pop();
+            stack.push(concatenate(a, b, states));
+        } else if (c == '|') {
+            auto b = stack.top(); stack.pop();
+            auto a = stack.top(); stack.pop();
+            stack.push(alternative(a, b, states));
+        } else if (c == '*') {
+            auto a = stack.top(); stack.pop();
+            stack.push(kleenStar(a, states));
+        } else if (c == '+') {
+            auto a = stack.top(); stack.pop();
+            stack.push(plus(a, states));
+        } else if (c == '?') {
+            auto a = stack.top(); stack.pop();
+            stack.push(optional(a, states));
+        }
+    }
+    return stack.top();
+}
+
+void printNFA(const std::vector<State>& states, Fragment nfa) {
+    std::cout << "\n=== NFA (Start: " << nfa.starter << ", Akceptujacy: " << nfa.ender << ") ===\n";
+    for (size_t i = 0; i < states.size(); ++i) {
+        std::cout << "Stan " << i << ":\n";
+        if (states[i].transitions.empty()) {
+            std::cout << "  (brak wyjsc)\n";
+        }
+        for (const auto& t : states[i].transitions) {
+            std::cout << "  --" << (t.sign == EPSILON ? "eps" : std::string(1, t.sign)) 
+                      << "--> Stan " << t.target << "\n";
+        }
+    }
 }
 
 int main() {
-    std::string testCases[] = {
-        "abc",         // -> a&b&c
-        "a(b)c",       // -> a&(b)&c
-        "a*b",         // -> a*&b
-        "a+bc",        // -> a+&b&c
-        "a?b",         // -> a?&b
-        "(a|b)c",      // -> (a|b)&c
-        "a(b|c)*d",    // -> a&(b|c)*&d
-        "a.b"          // -> a&.&b
-    };
     std::string raw = "a(b|c)*d";
     std::string withConcat = addConcatenation(raw);
     std::string postfix = toPostfix(withConcat);
@@ -179,10 +209,11 @@ int main() {
     std::cout << "Wejscie:   " << raw << std::endl;
     std::cout << "Po '&':    " << withConcat << std::endl;
     std::cout << "Postfix:   " << postfix << std::endl;
-    std::cout << "=== Test Kroku 1: Wstawianie konkatenacji (&) ===" << std::endl;
-    for (const auto& test : testCases) {
-        std::cout << test << "  ==>  " << addConcatenation(test) << std::endl;
-    }
+
+    std::vector<State> states;
+    Fragment nfa = buildNFA(postfix, states);
+
+    printNFA(states, nfa);
 
     return 0;
 }
