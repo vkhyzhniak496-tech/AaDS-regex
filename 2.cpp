@@ -447,6 +447,17 @@ int main() {
     runInvalidRegexTest("(a|b", "Brak nawiasu zamykajacego");
     runInvalidRegexTest("a|b)", "Brak nawiasu otwierajacego");
     runInvalidRegexTest("a**", "Podwojny kwantyfikator");
+    runMatchTest("a.*b", "ab", true);       // 0 dowolnych znakow miedzy a i b
+    runMatchTest("a.*b", "axxxb", true);    // wiele dowolnych znakow
+    runMatchTest("a.+b", "ab", false);      // .+ wymaga min. 1 znaku
+    runMatchTest("a.+b", "axb", true);      // 1 dowolny znak
+    runMatchTest("a.?b", "ab", true);       // 0 znakow
+    runMatchTest("a.?b", "axb", true);      // 1 znak
+    runMatchTest("a.?b", "axxb", false);    // 2 znaki -> za duzo dla ?
+    runMatchTest("((.*|A*)|A)*", "AAAAAAAAAAAAAAAAAAAAAAAAAAAA", true);    // 2 znaki -> za duzo dla ?
+    runMatchTest("a*", "", true);
+    runMatchTest("a?", "", true);
+    runMatchTest("a+", "", false);
 
     return 0;
-}
+}   
